@@ -1,74 +1,90 @@
 // create web server
-var express = require('express');
-var app = express();
-// create server
-var server = require('http').createServer(app);
-// create socket server
-var io = require('socket.io')(server);
-// create database
-var mongoose = require('mongoose');git add comments.js
-mongoose.connect('mongodb://localhost:27017/chat', {useNewUrlParser: true, useUnifiedTopology: true});
-// create model
-var chatSchema = new mongoose.Schema({
-    name: String,
-    message: String,
-    date: {type: Date, default: Date.now}
-});
-var Chat = mongoose.model('Message', chatSchema);
-
-// create web server
-app.use(express.static(__dirname + '/public'));
-// create socket server
-io.on('connection', function (socket) {
-    console.log('a user connected');
-    // get message
-    Chat.find({}, function (err, docs) {
-        if (err) throw err;
-        socket.emit('load old msgs', docs);
+// 1. load modules
+var http = require('http');
+var fs = require('fs');
+var url = require('url');
+var qs = require('querystring');
+// 2. create web server
+var server = http.createServer(function(request,response){
+    // 2.1 get url
+    var parsedUrl = url.parse(request.url);
+    var resource = parsedUrl.pathname;
+    // 2.2 remove first slash
+    if(resource == '/'){
+        resource = '/index.html';
+    }
+    // 2.3 read file from web folder
+    var resourcePath = '.' + resource;
+    console.log(resourcePath);
+    fs.readFile(resourcePath, 'utf-8', function(error, data){
+        if(error){
+            response.writeHead(500, {'Content-Type':'text/html'});
+            response.end('500 Internal Server '+error);
+        }else{
+            response.writeHead(200, {'Content-Type':'text/html'});
+            response.end(data);
+        }
     });
-    // send message
-    socket.on('send message', function (data) {
-        var newMsg = new Chat({name: data.name, message: data.message});
-        newMsg.save(function (err) {
-            if (err) throw err;
-            io.emit('new message', {name: data.name, message: data.message});
+});
+// 3. start server
+server.listen(80, function(){
+    console.log('Server running at http://' + server.address().address + ':' + server.address().port);
+}
+);
+// 4. add event listener
+var comments = [];
+server.on('request', function(request, response){
+    // 4.1 get url
+    var parsedUrl = url.parse(request.url);
+    var resource = parsedUrl.pathname;
+    // 4.2 remove first slash
+    if(resource == '/'){
+        resource = '/index.html';
+    }
+    // 4.3 check if posting comment
+    if(resource == '/comment'){
+        // 4.3.1 get data
+        var body = '';
+        request.on('data', function(data){
+            body += data;
         });
-    });
-    // disconnect
-    socket.on('disconnect', function () {
-        console.log('user disconnected');
-    });
-});
-
-server.listen(3000, function () {
-    console.log('listening on *:3000');
-});const express = require('express');
-const router = express.Router();
-const Comment = require('../models/Comment');
-const { response } = require('express');
-const { request } = require('http');
-
-// get all comments
-router.get('/', async (req, res) => {
-    try {
-        const comments = await Comment.find();
-        res.json(comments);
-    } catch (err) {
-        res.json({ message: err });
+        request.on('end', function(){
+            var comment = qs.parse(body);
+            comments.push(comment);
+            console.log(comments);
+            // 4.3.2 redirect to home page
+            response.writeHead(302, {
+                'Location': './'
+            });
+            response.end();
+        });
     }
 });
-
-// get specific comment
-router.get('/:commentId', async (req, res) => {
-    try {
-        const comment = await Comment.findById(req.params.commentId);
-        res.json(comment);
-    } catch (err) {
-        res.json({ message: err });
+// 5. add event listener
+server.on('request', function(request, response){
+    // 5.1 get url
+    var parsedUrl = url.parse(request.url);
+    var resource = parsedUrl.pathname;
+    // 5.2 remove first slash
+    if(resource == '/'){
+        resource = '/index.html';
+    }
+    // 5.3 check if posting comment
+    if(resource == '/comment'){
+        // 5.3.1 get data
+        var body = '';
+        request.on('data', function(data){
+            body += data;
+        });
+        request.on('end', function(){
+            var comment = qs.parse(body);
+            comments.push(comment);
+            console.log(comments);
+            // 5.3.2 redirect to home page
+            response.writeHead(302, {
+                'Location': './'
+            });
+            response.end();
+        });
     }
 });
-
-// submit a comment
-router.post('/', async (req, res) => {
-    const comment = new Comment({
-        text: req.body.text,
